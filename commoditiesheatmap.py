@@ -46,8 +46,8 @@ st.sidebar.subheader("Select Time Range")
 data = fetch_data(ticker, period="max", interval="1d")
 
 # Display Latest Price
-if not data.empty:
-    latest_price = data["Close"].iloc[-1]
+if not data.empty and "Close" in data.columns and not data["Close"].dropna().empty:
+    latest_price = data["Close"].dropna().iloc[-1]
     st.metric(label=f"{selected_commodity} Latest Price", value=f"${latest_price:.2f}")
 
     # Plot Price Chart
