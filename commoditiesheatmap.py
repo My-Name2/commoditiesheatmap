@@ -1,17 +1,19 @@
 import yfinance as yf
-import plotly.express as px
-import pandas as pd
+import matplotlib.pyplot as plt
 
-# Choose a commodity (Gold in this example)
-ticker = "GC=F"
-data = yf.download(ticker, period="max", interval="1d").reset_index()
+# Set ticker to SPY
+ticker = "SPY"
 
-# Flatten the columns if they are tuples (or a MultiIndex)
-if isinstance(data.columns, pd.MultiIndex):
-    data.columns = data.columns.get_level_values(0)
-elif isinstance(data.columns[0], tuple):
-    data.columns = [col[0] for col in data.columns]
+# Download historical data for SPY
+data = yf.download(ticker, period="max", interval="1d")
 
-# Now "Date" is a valid column name.
-fig = px.line(data, x="Date", y="Close", title="Gold Price History (Close)")
-fig.show()
+# Plot the Close price versus the date (index)
+plt.figure(figsize=(12, 6))
+plt.plot(data.index, data["Close"], label="SPY Close Price")
+plt.title("SPY Price History (Close)")
+plt.xlabel("Date")
+plt.ylabel("Close Price")
+plt.legend()
+plt.xticks(rotation=45)
+plt.tight_layout()
+plt.show()
