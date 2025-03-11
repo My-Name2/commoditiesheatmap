@@ -1,17 +1,27 @@
+import streamlit as st
 import yfinance as yf
-import plotly.express as px
-import pandas as pd
+import matplotlib.pyplot as plt
 
-# Set ticker to SPY
+st.title("SPY Price Chart")
+
 ticker = "SPY"
-
-# Download historical data for SPY and reset the index to get the Date column
+st.write("Fetching SPY data...")
 data = yf.download(ticker, period="max", interval="1d")
 
-# Flatten columns if they are a MultiIndex (not needed for SPY, but safe to include)
-if isinstance(data.columns, pd.MultiIndex):
-    data.columns = data.columns.get_level_values(0)
-
-# Create an interactive line chart with Plotly Express
-fig = px.line(data, x="Date", y="Close", title="SPY Price History (Close)")
-fig.show()
+if data.empty:
+    st.write("No data available for SPY.")
+else:
+    # Create the matplotlib figure and axis
+    fig, ax = plt.subplots(figsize=(12, 6))
+    
+    # Plot the Close price using the DataFrame's index as the date axis
+    ax.plot(data.index, data["Close"], label="SPY Close Price")
+    ax.set_title("SPY Price History (Close)")
+    ax.set_xlabel("Date")
+    ax.set_ylabel("Close Price")
+    ax.legend()
+    plt.xticks(rotation=45)
+    plt.tight_layout()
+    
+    # Display the matplotlib chart in Streamlit
+    st.pyplot(fig)
