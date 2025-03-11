@@ -1,26 +1,15 @@
 import yfinance as yf
-import matplotlib.pyplot as plt
+import pandas as pd
+import plotly.express as px
 
-# Choose a commodity
-commodity = "Gold"
+# Choose a commodity ticker (Gold in this example)
 ticker = "GC=F"
+data = yf.download(ticker, period="max", interval="1d").reset_index()
 
-# Download historical data
-data = yf.download(ticker, period="max", interval="1d")
+# Flatten the DataFrame columns if they are a MultiIndex
+if isinstance(data.columns, pd.MultiIndex):
+    data.columns = data.columns.map(lambda x: x[0])
 
-# Create a matplotlib figure and plot the Close prices
-plt.figure(figsize=(10, 6))
-plt.plot(data.index, data["Close"], label="Close Price")
-plt.title(f"{commodity} Price History (Close)")
-plt.xlabel("Date")
-plt.ylabel("Close Price")
-plt.xticks(rotation=45)
-plt.legend()
-plt.tight_layout()
-
-# Save the plot as an image file
-image_file = "commodity_chart.png"
-plt.savefig(image_file)
-plt.show()
-
-print(f"Chart saved to {image_file}")
+# Now plot the chart using Plotly Express
+fig = px.line(data, x="Date", y="Close", title="Gold Price History (Close)")
+fig.show()
