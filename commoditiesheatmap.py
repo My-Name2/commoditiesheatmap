@@ -6,7 +6,7 @@ import pandas as pd
 ticker = "SPY"
 
 # Download historical data for SPY and reset the index to get the Date column
-data = yf.download(ticker, period="max", interval="1d").reset_index()
+data = yf.download(ticker, period="max", interval="1d")
 
 # Flatten columns if they are a MultiIndex (not needed for SPY, but safe to include)
 if isinstance(data.columns, pd.MultiIndex):
