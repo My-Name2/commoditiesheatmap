@@ -30,32 +30,33 @@ COMMODITIES = {
 }
 
 # Streamlit App Title
-st.title("📈 Commodities Dashboard")
+st.title("📈 Commodities Heatmap Dashboard")
 
-# Sidebar selection
-selected_commodity = st.sidebar.selectbox("Select a Commodity", list(COMMODITIES.keys()))
+def fetch_latest_prices():
+    prices = {}
+    for commodity, ticker in COMMODITIES.items():
+        data = yf.download(ticker, period="1d", interval="1d")
+        if not data.empty and "Close" in data.columns:
+            prices[commodity] = float(data["Close"].iloc[-1])
+    return prices
 
-ticker = COMMODITIES[selected_commodity]
+# Fetch latest prices
+st.sidebar.subheader("Fetching Latest Prices...")
+prices = fetch_latest_prices()
 
-def fetch_data(ticker, period="max", interval="1d"):
-    data = yf.download(ticker, period=period, interval=interval)
-    return data
-
-# Fetch Data
-st.sidebar.subheader("Select Time Range")
-data = fetch_data(ticker, period="max", interval="1d")
-
-# Display Latest Price
-if not data.empty and "Close" in data.columns and not data["Close"].dropna().empty:
-    latest_price = data["Close"].dropna().iloc[-1]
-    st.metric(label=f"{selected_commodity} Latest Price", value=f"${latest_price:.2f}")
-
-    # Plot Price Chart
-    fig = px.line(data, x=data.index, y="Close", title=f"{selected_commodity} Price Trend")
+# Convert prices to DataFrame for heatmap visualization
+if prices:
+    df = pd.DataFrame(prices.items(), columns=["Commodity", "Latest Price"])
+    df = df.sort_values(by="Latest Price", ascending=False)
+    fig = px.imshow([df["Latest Price"].values], 
+                    labels=dict(x="Commodity", y="", color="Price"),
+                    x=df["Commodity"].values, 
+                    y=[""],
+                    color_continuous_scale="Viridis")
     st.plotly_chart(fig)
     
     # Show Data Table
-    st.subheader("Historical Prices")
-    st.dataframe(data.tail(10))
+    st.subheader("Latest Prices")
+    st.dataframe(df)
 else:
-    st.warning("No data available. Please try a different commodity.")
+    st.warning("No data available. Please try again later.")
