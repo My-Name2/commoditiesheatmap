@@ -1,15 +1,13 @@
 import streamlit as st
 import yfinance as yf
-import plotly.express as px
 import pandas as pd
+import plotly.express as px
 
-# Streamlit app title
-st.title("Commodity Price Dashboard")
-st.markdown("""
-Displays long-term historical closing prices (daily) for each commodity using Plotly.
+st.title("Commodity Price Dashboard (Debug Mode)")
+st.write("""
+**This version prints the DataFrame columns before plotting, so you can see exactly what's happening.**
 """)
 
-# Define the commodities and their ticker symbols
 commodities = {
     "Gold": "GC=F",
     "Silver": "SI=F",
@@ -33,44 +31,45 @@ commodities = {
     "Orange Juice": "OJ=F"
 }
 
-# How many columns in each row
 cols = 3
-commodity_names = list(commodities.keys())
-total = len(commodity_names)
+com_names = list(commodities.keys())
+total = len(com_names)
 
-# Loop over commodities in chunks of 'cols'
 for i in range(0, total, cols):
-    columns = st.columns(cols)
-    # For each commodity in this row
-    for col, name in zip(columns, commodity_names[i : i + cols]):
+    row = st.columns(cols)
+    
+    for col, name in zip(row, com_names[i : i + cols]):
         ticker = commodities[name]
         
-        # Download historical data (max period, daily interval)
+        # Download daily data for the maximum period
         df = yf.download(ticker, period="max", interval="1d")
         
-        # If no data is returned, skip
         if df.empty:
-            col.write(f"No data available for {name}.")
+            col.write(f"**No data returned for {name}**")
             continue
         
-        # Drop the second level of columns if it exists (commonly the ticker name):
-        # Resulting columns should be: Open, High, Low, Close, Adj Close, Volume
-        if isinstance(df.columns, pd.MultiIndex):
-            # Safely check if there is indeed a second level
-            if df.columns.nlevels > 1:
-                df.columns = df.columns.droplevel(1)
-        
-        # Reset index so "Date" is a column
-        df.reset_index(inplace=True)
-        
-        # Make sure we have "Date" and "Close" columns
-        # (After droplevel, the DataFrame should have columns: 
-        #  ["Date", "Open", "High", "Low", "Close", "Adj Close", "Volume"])
-        if "Date" not in df.columns or "Close" not in df.columns:
-            col.write(f"Required columns not found for {name}. Columns are: {list(df.columns)}")
-            continue
+        # Flatten multi-level columns if necessary
+        if isinstance(df.columns, pd.MultiIndex) and df.columns.nlevels > 1:
+            df.columns = df.columns.droplevel(1)
 
-        # Plot with Plotly Express
+        # Reset index so 'Date' becomes a column
+        df.reset_index(inplace=True)  # If the index was the date, now it's a column named 'Date'
+
+        # If you still see weird tuples, flatten them
+        if isinstance(df.columns[0], tuple):
+            df.columns = [c[0] for c in df.columns]
+        
+        # For debugging: let's print the first few rows and the columns
+        with col.expander(f"Debug: {name} DataFrame Head & Columns"):
+            col.write("Columns:", list(df.columns))
+            col.write(df.head())
+
+        # We want to ensure "Date" and "Close" exist
+        if "Date" not in df.columns or "Close" not in df.columns:
+            col.write(f"**Missing 'Date' or 'Close' columns for {name}**.")
+            continue
+        
+        # Plot
         title = f"{name} Price History (Close)"
         try:
             fig = px.line(df, x="Date", y="Close", title=title)
