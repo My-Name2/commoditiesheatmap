@@ -45,6 +45,16 @@ cryptos = {
 }
 
 # ---------------------------
+# Callback functions for buttons
+# ---------------------------
+def clear_dashboard():
+    st.session_state["commodity_select"] = []
+    st.session_state["custom_input"] = ""
+
+def insert_commodities():
+    st.session_state["commodity_select"] = list(commodities.keys())
+
+# ---------------------------
 # Sidebar Controls
 # ---------------------------
 st.sidebar.header("Dashboard Controls")
@@ -69,7 +79,7 @@ st.sidebar.write("""
 If a chart is empty, try a shorter period or a longer interval.
 """)
 
-# Commodity selection (using session state keys so that buttons can modify them)
+# Commodity selection (with session state keys)
 selected = st.sidebar.multiselect(
     "Select commodities to display:",
     options=list(commodities.keys()),
@@ -83,14 +93,9 @@ custom_input = st.sidebar.text_input(
     key="custom_input"
 )
 
-# Button: Clear Dashboard – resets commodity selection and custom input.
-if st.sidebar.button("Clear Dashboard"):
-    st.session_state["commodity_select"] = []
-    st.session_state["custom_input"] = ""
-
-# Button: Insert Commodities – resets the commodity selection to default.
-if st.sidebar.button("Insert Commodities"):
-    st.session_state["commodity_select"] = list(commodities.keys())
+# Buttons with callbacks to modify session state
+st.sidebar.button("Clear Dashboard", on_click=clear_dashboard)
+st.sidebar.button("Insert Commodities", on_click=insert_commodities)
 
 # Checkbox: Include Cryptos
 include_crypto = st.sidebar.checkbox("Include Cryptos")
@@ -100,7 +105,7 @@ include_crypto = st.sidebar.checkbox("Include Cryptos")
 # ---------------------------
 dashboard = {}
 
-# Add selected commodities
+# Add selected commodities from session state
 for name in st.session_state.get("commodity_select", selected):
     dashboard[name] = commodities[name]
 
@@ -120,7 +125,7 @@ if include_crypto:
 @st.cache_data
 def get_data(ticker, period, interval):
     data = yf.download(ticker, period=period, interval=interval)
-    # Flatten columns if they are MultiIndex
+    # Flatten columns if they are a MultiIndex
     if isinstance(data.columns, pd.MultiIndex):
         data.columns = data.columns.get_level_values(0)
     return data
@@ -130,7 +135,6 @@ def compute_zscore(prices: pd.Series) -> float:
     if prices.empty:
         return np.nan
     mean_price = prices.mean()
-    # Convert standard deviation to float
     std_price = float(prices.std())
     if std_price == 0:
         return np.nan
