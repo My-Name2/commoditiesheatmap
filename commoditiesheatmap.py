@@ -4,7 +4,7 @@ import streamlit as st
 import pandas as pd
 
 st.title("Commodity Price Dashboard")
-st.markdown("This dashboard displays historical closing prices for various commodities.")
+st.markdown("This dashboard displays historical closing prices for various commodities using Plotly Express.")
 
 # Define commodities and their ticker symbols
 commodities = {
@@ -30,27 +30,36 @@ commodities = {
     "Orange Juice": "OJ=F"
 }
 
-# Set the number of columns for the dashboard grid
+# Set the number of columns in the grid layout
 cols = 3
 commodity_names = list(commodities.keys())
 n = len(commodity_names)
 
-# Loop over commodities in groups of 'cols' and display each chart in its own Streamlit column
+# Iterate over commodities in groups of 'cols'
 for i in range(0, n, cols):
     columns = st.columns(cols)
     for col, name in zip(columns, commodity_names[i:i+cols]):
         ticker = commodities[name]
         data = yf.download(ticker, period="max", interval="1d").reset_index()
         
+        # If data is empty, skip this commodity
+        if data.empty:
+            col.write(f"No data available for {name}")
+            continue
+        
         # Flatten multi-index columns if present
         if isinstance(data.columns, pd.MultiIndex):
-            data.columns = [col_item[0] for col_item in data.columns]
+            data.columns = data.columns.get_level_values(0)
         
-        # Ensure "Date" column exists
+        # Ensure the "Date" column exists; if not, rename the first column to "Date"
         if "Date" not in data.columns:
             data = data.rename(columns={data.columns[0]: "Date"})
         
-        # Create the Plotly Express line chart
-        fig = px.line(data, x="Date", y="Close", title=f"{name} Price History (Close)")
+        # Create the Plotly Express line chart using the "Date" and "Close" columns
+        try:
+            fig = px.line(data, x="Date", y="Close", title=f"{name} Price History (Close)")
+        except Exception as e:
+            col.write(f"Error plotting {name}: {e}")
+            continue
         
         col.plotly_chart(fig, use_container_width=True)
