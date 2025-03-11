@@ -79,6 +79,9 @@ st.sidebar.write("""
 If a chart is empty, try a shorter period or a longer interval.
 """)
 
+# Checkbox to exclude afterhours data (useful for intraday intervals)
+exclude_afterhours = st.sidebar.checkbox("Exclude After‑Hours", value=True)
+
 # Commodity selection (with session state keys)
 selected = st.sidebar.multiselect(
     "Select commodities to display:",
@@ -124,8 +127,8 @@ if include_crypto:
 # ---------------------------
 @st.cache_data
 def get_data(ticker, period, interval):
-    data = yf.download(ticker, period=period, interval=interval)
-    # Flatten columns if they are a MultiIndex
+    data = yf.download(ticker, period=period, interval=interval, prepost=False)
+    # Flatten columns if they are MultiIndex
     if isinstance(data.columns, pd.MultiIndex):
         data.columns = data.columns.get_level_values(0)
     return data
@@ -145,6 +148,14 @@ def compute_zscore(prices: pd.Series) -> float:
 items_data = []
 for name, ticker in dashboard.items():
     data = get_data(ticker, period, interval)
+    
+    # If exclude_afterhours is enabled and the data index has time info, filter to regular hours.
+    if exclude_afterhours and not data.empty and isinstance(data.index, pd.DatetimeIndex):
+        # Check if the index has a time component (not just a date)
+        if data.index[0].strftime("%H:%M:%S") != "00:00:00":
+            # For US equities, filter from 09:30 to 16:00 (adjust if needed for your asset)
+            data = data.between_time("09:30", "16:00")
+    
     if data.empty:
         zscore = np.nan
     else:
