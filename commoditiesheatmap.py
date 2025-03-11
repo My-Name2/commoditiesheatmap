@@ -2,19 +2,31 @@ import streamlit as st
 import yfinance as yf
 import matplotlib.pyplot as plt
 
-st.title("SPY Price Chart")
+# Initialize the chart counter in session state if it doesn't exist yet.
+if "chart_count" not in st.session_state:
+    st.session_state.chart_count = 1
 
-ticker = "SPY"
-st.write("Fetching SPY data...")
-data = yf.download(ticker, period="max", interval="1d")
+st.title("Multi-Chart SPY Viewer")
 
-if data.empty:
-    st.write("No data available for SPY.")
-else:
-    # Create the matplotlib figure and axis
-    fig, ax = plt.subplots(figsize=(12, 6))
+# Button to add an extra chart (up to 100)
+if st.button("Add Chart"):
+    if st.session_state.chart_count < 100:
+        st.session_state.chart_count += 1
+    else:
+        st.warning("Maximum of 100 charts reached.")
+
+st.write("Number of charts:", st.session_state.chart_count)
+
+# Loop to create and display each chart
+for i in range(st.session_state.chart_count):
+    st.subheader(f"Chart {i+1}")
     
-    # Plot the Close price using the DataFrame's index as the date axis
+    # Download historical data for SPY
+    ticker = "SPY"
+    data = yf.download(ticker, period="max", interval="1d")
+    
+    # Create a matplotlib figure for this chart
+    fig, ax = plt.subplots(figsize=(12, 6))
     ax.plot(data.index, data["Close"], label="SPY Close Price")
     ax.set_title("SPY Price History (Close)")
     ax.set_xlabel("Date")
@@ -23,5 +35,5 @@ else:
     plt.xticks(rotation=45)
     plt.tight_layout()
     
-    # Display the matplotlib chart in Streamlit
+    # Display the matplotlib figure in Streamlit
     st.pyplot(fig)
