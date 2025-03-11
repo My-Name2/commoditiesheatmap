@@ -1,10 +1,12 @@
 import streamlit as st
 import yfinance as yf
 import matplotlib.pyplot as plt
+import pandas as pd
+import numpy as np
 
 st.set_page_config(layout="wide")  # Use the full width of the browser
 
-st.title("Commodities Dashboard")
+st.title("Commodities Dashboard (Sorted by Z‑Score)")
 
 # Define default commodities and their ticker symbols
 commodities = {
@@ -49,7 +51,7 @@ for ticker in custom_tickers:
     # For custom tickers, use the same string for both name and ticker
     dashboard[ticker] = ticker
 
-# Timeframe controls
+# Timeframe controls in the sidebar
 st.sidebar.header("Select Timeframe")
 period = st.sidebar.selectbox(
     "Period",
@@ -67,29 +69,65 @@ st.sidebar.write("""
 If a chart is empty, try a shorter period or a longer interval.
 """)
 
+# Allow user to adjust the number of columns per row (from 1 to 10)
+cols_per_row = st.sidebar.slider("Number of columns per row", min_value=1, max_value=10, value=3, step=1)
+
 # Cache data to speed up repeated downloads
 @st.cache_data
 def get_data(ticker, period, interval):
     return yf.download(ticker, period=period, interval=interval)
 
-# How many charts per row
-cols_per_row = 3
-items = list(dashboard.items())
+def compute_zscore(prices: pd.Series) -> float:
+    """
+    Compute the z-score of the most recent price relative to the entire price history.
+    z = (last_price - mean) / std
+    Returns np.nan if std is 0 or if prices is empty.
+    """
+    if prices.empty:
+        return np.nan
+    mean_price = prices.mean()
+    std_price = prices.std()
+    if std_price == 0:
+        return np.nan
+    last_price = prices.iloc[-1]
+    return (last_price - mean_price) / std_price
 
-# Display the charts in a grid
+# 1. Collect data and compute z‑scores for each commodity
+items_data = []
+for name, ticker in dashboard.items():
+    data = get_data(ticker, period, interval)
+    if data.empty:
+        zscore = np.nan
+    else:
+        zscore = compute_zscore(data["Close"])
+    items_data.append({
+        "name": name,
+        "ticker": ticker,
+        "data": data,
+        "zscore": zscore
+    })
+
+# 2. Sort by z‑score ascending (lowest first = "cheapest")
+items_data = sorted(items_data, key=lambda x: (np.isnan(x["zscore"]), x["zscore"]))
+
+# 3. Display the charts in a grid
+items = items_data
 for i in range(0, len(items), cols_per_row):
     cols = st.columns(cols_per_row)
-    for j, (name, ticker) in enumerate(items[i : i + cols_per_row]):
+    for j, item in enumerate(items[i : i + cols_per_row]):
         with cols[j]:
-            # Fetch data
-            data = get_data(ticker, period, interval)
+            name = item["name"]
+            ticker = item["ticker"]
+            data = item["data"]
+            zscore = item["zscore"]
+
             if data.empty:
                 st.write(f"No data available for {name} ({ticker})")
             else:
                 fig, ax = plt.subplots(figsize=(4, 3))
                 ax.plot(data.index, data["Close"], label="Close", linewidth=1)
-                # Add a small title with the commodity name and ticker
-                ax.set_title(f"{name} ({ticker})", fontsize=10)
+                # Label includes name, ticker, and z‑score
+                ax.set_title(f"{name} ({ticker})\nz = {zscore:.2f}", fontsize=9)
                 ax.tick_params(axis="x", labelrotation=45, labelsize=6)
                 ax.tick_params(axis="y", labelsize=6)
                 ax.set_xlabel("")
