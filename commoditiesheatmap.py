@@ -1,12 +1,15 @@
+import streamlit as st
 import yfinance as yf
 import plotly.express as px
-import streamlit as st
 import pandas as pd
 
+# Streamlit app title
 st.title("Commodity Price Dashboard")
-st.markdown("This dashboard displays historical closing prices for various commodities using Plotly Express.")
+st.markdown("""
+Displays long-term historical closing prices (daily) for each commodity using Plotly.
+""")
 
-# Define commodities and their ticker symbols
+# Define the commodities and their ticker symbols
 commodities = {
     "Gold": "GC=F",
     "Silver": "SI=F",
@@ -30,40 +33,47 @@ commodities = {
     "Orange Juice": "OJ=F"
 }
 
-# Set the number of columns for the grid layout
+# How many columns in each row
 cols = 3
 commodity_names = list(commodities.keys())
-n = len(commodity_names)
+total = len(commodity_names)
 
-# Iterate over commodities in groups of 'cols'
-for i in range(0, n, cols):
+# Loop over commodities in chunks of 'cols'
+for i in range(0, total, cols):
     columns = st.columns(cols)
-    for col, name in zip(columns, commodity_names[i:i+cols]):
+    # For each commodity in this row
+    for col, name in zip(columns, commodity_names[i : i + cols]):
         ticker = commodities[name]
-        data = yf.download(ticker, period="max", interval="1d").reset_index()
         
-        # If data is empty, display a message and skip plotting
-        if data.empty:
+        # Download historical data (max period, daily interval)
+        df = yf.download(ticker, period="max", interval="1d")
+        
+        # If no data is returned, skip
+        if df.empty:
             col.write(f"No data available for {name}.")
             continue
         
-        # If the columns are a MultiIndex, flatten them
-        if isinstance(data.columns, pd.MultiIndex):
-            data.columns = data.columns.get_level_values(0)
-        # Also check if the first column is a tuple (i.e., columns like ("Date", ""))
-        elif isinstance(data.columns[0], tuple):
-            data.columns = [col_item[0] for col_item in data.columns]
+        # Drop the second level of columns if it exists (commonly the ticker name):
+        # Resulting columns should be: Open, High, Low, Close, Adj Close, Volume
+        if isinstance(df.columns, pd.MultiIndex):
+            # Safely check if there is indeed a second level
+            if df.columns.nlevels > 1:
+                df.columns = df.columns.droplevel(1)
         
-        # Ensure the "Date" column exists; if not, rename the first column to "Date"
-        if "Date" not in data.columns:
-            data = data.rename(columns={data.columns[0]: "Date"})
+        # Reset index so "Date" is a column
+        df.reset_index(inplace=True)
         
-        # Create a Plotly Express line chart
-        try:
-            fig = px.line(data, x="Date", y="Close", title=f"{name} Price History (Close)")
-        except Exception as e:
-            col.write(f"Error plotting {name}: {e}")
+        # Make sure we have "Date" and "Close" columns
+        # (After droplevel, the DataFrame should have columns: 
+        #  ["Date", "Open", "High", "Low", "Close", "Adj Close", "Volume"])
+        if "Date" not in df.columns or "Close" not in df.columns:
+            col.write(f"Required columns not found for {name}. Columns are: {list(df.columns)}")
             continue
-        
-        # Display the Plotly chart in the corresponding Streamlit column
-        col.plotly_chart(fig, use_container_width=True)
+
+        # Plot with Plotly Express
+        title = f"{name} Price History (Close)"
+        try:
+            fig = px.line(df, x="Date", y="Close", title=title)
+            col.plotly_chart(fig, use_container_width=True)
+        except Exception as e:
+            col.error(f"Could not plot {name}: {str(e)}")
