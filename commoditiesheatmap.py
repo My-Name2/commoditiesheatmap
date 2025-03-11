@@ -1,19 +1,17 @@
 import yfinance as yf
-import matplotlib.pyplot as plt
+import plotly.express as px
+import pandas as pd
 
 # Set ticker to SPY
 ticker = "SPY"
 
-# Download historical data for SPY
-data = yf.download(ticker, period="max", interval="1d")
+# Download historical data for SPY and reset the index to get the Date column
+data = yf.download(ticker, period="max", interval="1d").reset_index()
 
-# Plot the Close price versus the date (index)
-plt.figure(figsize=(12, 6))
-plt.plot(data.index, data["Close"], label="SPY Close Price")
-plt.title("SPY Price History (Close)")
-plt.xlabel("Date")
-plt.ylabel("Close Price")
-plt.legend()
-plt.xticks(rotation=45)
-plt.tight_layout()
-plt.show()
+# Flatten columns if they are a MultiIndex (not needed for SPY, but safe to include)
+if isinstance(data.columns, pd.MultiIndex):
+    data.columns = data.columns.get_level_values(0)
+
+# Create an interactive line chart with Plotly Express
+fig = px.line(data, x="Date", y="Close", title="SPY Price History (Close)")
+fig.show()
