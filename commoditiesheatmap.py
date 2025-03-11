@@ -29,10 +29,9 @@ COMMODITIES = {
     "Orange Juice": "OJ=F"
 }
 
-# Streamlit App Title
-st.title("📈 Commodities Heatmap Dashboard")
+st.title("📈 Commodities Dashboard")
 
-# ---------- Latest Prices Section ----------
+# ---------- Latest Prices Section (Existing Code) ----------
 st.sidebar.subheader("Fetching Latest Prices...")
 
 def fetch_latest_prices():
@@ -43,13 +42,12 @@ def fetch_latest_prices():
             prices[commodity] = float(data["Close"].iloc[-1])
     return prices
 
-# Fetch and display latest prices
 prices = fetch_latest_prices()
 if prices:
     df_latest = pd.DataFrame(prices.items(), columns=["Commodity", "Latest Price"])
     df_latest = df_latest.sort_values(by="Latest Price", ascending=False)
     
-    # Heatmap for latest prices
+    # Display latest prices heatmap for reference (optional)
     fig_latest = px.imshow([df_latest["Latest Price"].values], 
                            labels=dict(x="Commodity", y="", color="Price"),
                            x=df_latest["Commodity"].values, 
@@ -62,41 +60,38 @@ if prices:
 else:
     st.warning("No latest price data available. Please try again later.")
 
-# ---------- Historical Max Prices Section ----------
-st.sidebar.subheader("Historical Max Prices Settings")
-use_custom_date = st.sidebar.checkbox("Use custom start date for historical data", value=False)
-if use_custom_date:
-    start_date = st.sidebar.date_input("Select start date", value=pd.to_datetime("2010-01-01"))
-else:
-    start_date = None  # This will fetch full available history
+# ---------- Price Return Section ----------
+st.sidebar.subheader("Price Return Settings")
+price_return_start_date = st.sidebar.date_input("Select start date for price return", value=pd.to_datetime("2010-01-01"))
 
-def fetch_historical_max(start_date=None):
-    max_prices = {}
+def fetch_price_return(start_date):
+    returns = {}
     for commodity, ticker in COMMODITIES.items():
-        # If a start date is provided, use it; otherwise, fetch the full history
-        if start_date:
-            data = yf.download(ticker, start=start_date)
-        else:
-            data = yf.download(ticker, period="max")
-        if not data.empty and "High" in data.columns:
-            max_prices[commodity] = float(data["High"].max())
-    return max_prices
+        data = yf.download(ticker, start=start_date)
+        if not data.empty and "Close" in data.columns:
+            start_price = data["Close"].iloc[0]
+            latest_price = data["Close"].iloc[-1]
+            # Calculate percentage return
+            returns[commodity] = ((latest_price / start_price) - 1) * 100
+    return returns
 
-st.sidebar.subheader("Fetching Historical Max Prices...")
-historical_max_prices = fetch_historical_max(start_date)
-if historical_max_prices:
-    df_max = pd.DataFrame(historical_max_prices.items(), columns=["Commodity", "Max Historical Price"])
-    df_max = df_max.sort_values(by="Max Historical Price", ascending=False)
+price_returns = fetch_price_return(price_return_start_date)
+if price_returns:
+    df_return = pd.DataFrame(price_returns.items(), columns=["Commodity", "Return"])
+    df_return = df_return.sort_values(by="Return", ascending=False)
     
-    # Heatmap for historical max prices
-    fig_max = px.imshow([df_max["Max Historical Price"].values], 
-                        labels=dict(x="Commodity", y="", color="Price"),
-                        x=df_max["Commodity"].values, 
-                        y=[""],
-                        color_continuous_scale="Viridis")
-    st.plotly_chart(fig_max)
+    # Create a bar chart with a diverging color scale (red for negative, green for positive)
+    fig_return = px.bar(
+        df_return,
+        x="Commodity",
+        y="Return",
+        color="Return",
+        color_continuous_scale="RdYlGn",
+        title=f"Price Return (%) since {price_return_start_date.strftime('%Y-%m-%d')}"
+    )
+    st.plotly_chart(fig_return)
     
-    st.subheader("Max Historical Prices")
-    st.dataframe(df_max)
+    st.subheader("Price Returns Data")
+    st.dataframe(df_return)
 else:
-    st.warning("No historical max price data available. Please try again later.")
+    st.warning("No price return data available. Please try again later.")
