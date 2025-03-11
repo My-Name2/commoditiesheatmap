@@ -127,11 +127,26 @@ if include_crypto:
 # ---------------------------
 @st.cache_data
 def get_data(ticker, period, interval):
-    data = yf.download(ticker, period=period, interval=interval, prepost=False)
-    # Flatten columns if they are MultiIndex
+    data = yf.download(
+        ticker, 
+        period=period, 
+        interval=interval,
+        prepost=False  # Do not include after-hours
+    )
+    # Flatten MultiIndex columns if needed
     if isinstance(data.columns, pd.MultiIndex):
         data.columns = data.columns.get_level_values(0)
+    
+    # If intraday, filter to market hours (optional)
+    if interval.endswith("m") or interval.endswith("h"):
+        # Remove weekends
+        data = data[data.index.dayofweek < 5]
+        # Keep only 9:30–16:00 for US markets
+        data = data.between_time("09:30", "16:00")
+    
     return data
+
+
 
 def compute_zscore(prices: pd.Series) -> float:
     """Compute the z-score of the most recent price relative to the price history."""
