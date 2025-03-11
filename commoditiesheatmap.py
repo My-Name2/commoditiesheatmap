@@ -28,19 +28,38 @@ commodities = {
     "Orange Juice": "OJ=F"
 }
 
-# Create a selectbox for choosing a commodity
-commodity = st.selectbox("Select a Commodity", list(commodities.keys()))
+# Let the user choose a commodity
+selected_comm = st.selectbox("Select a Commodity", list(commodities.keys()))
+ticker = commodities[selected_comm]
 
-# Get the corresponding ticker symbol
-ticker = commodities[commodity]
-
-st.write("Fetching data for", commodity)
+st.write("Fetching data for", selected_comm)
 data = yf.download(ticker, period="max", interval="1d").reset_index()
 
-if not data.empty:
-    # Optionally, set the Date column as index for better plotting
-    data = data.set_index("Date")
-    st.line_chart(data["Close"])
-    st.write(f"Data from {data.index.min().date()} to {data.index.max().date()}")
+# Flatten the DataFrame columns if they are a MultiIndex.
+if isinstance(data.columns, pd.MultiIndex):
+    data.columns = data.columns.get_level_values(0)
+
+if data.empty:
+    st.write("No data available for", selected_comm)
 else:
-    st.write("No data available for", commodity)
+    # Option 1: Using Streamlit's built-in line chart (simple)
+    data = data.set_index("Date")
+    st.subheader(f"{selected_comm} Close Price")
+    st.line_chart(data["Close"])
+
+    # Option 2: Using Plotly Express (with marker for max high)
+    # Uncomment the code below if you'd like to use Plotly instead.
+    """
+    import plotly.express as px
+
+    # Compute maximum high price and corresponding date
+    max_price = data["High"].max()
+    max_date = data.loc[data["High"].idxmax(), "Date"]
+
+    fig = px.line(data.reset_index(), x="Date", y="Close", title=f"{selected_comm} Price History")
+    fig.add_scatter(x=[max_date], y=[max_price],
+                    mode="markers",
+                    marker=dict(color="red", size=10),
+                    name="Max High")
+    st.plotly_chart(fig, use_container_width=True)
+    """
