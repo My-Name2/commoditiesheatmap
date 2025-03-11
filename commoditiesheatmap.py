@@ -4,13 +4,15 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
 
-# Use wide layout for full-page display
+# --------------------------------------------------------------------------------
+# Set up Streamlit page
+# --------------------------------------------------------------------------------
 st.set_page_config(layout="wide")
 st.title("Commodities & Cryptos Dashboard (Sorted by Z‑Score)")
 
-# ---------------------------
+# --------------------------------------------------------------------------------
 # Default Dictionaries
-# ---------------------------
+# --------------------------------------------------------------------------------
 commodities = {
     "Gold": "GC=F",
     "Silver": "SI=F",
@@ -44,9 +46,9 @@ cryptos = {
     "Polkadot": "DOT-USD"
 }
 
-# ---------------------------
-# Callback functions for buttons
-# ---------------------------
+# --------------------------------------------------------------------------------
+# Callback functions for "Clear" and "Insert" buttons
+# --------------------------------------------------------------------------------
 def clear_dashboard():
     st.session_state["commodity_select"] = []
     st.session_state["custom_input"] = ""
@@ -54,12 +56,12 @@ def clear_dashboard():
 def insert_commodities():
     st.session_state["commodity_select"] = list(commodities.keys())
 
-# ---------------------------
+# --------------------------------------------------------------------------------
 # Sidebar Controls
-# ---------------------------
+# --------------------------------------------------------------------------------
 st.sidebar.header("Dashboard Controls")
 
-# Grid Layout Slider: adjust number of columns per row (1-10)
+# Number of columns per row (1-10)
 cols_per_row = st.sidebar.slider("Number of columns per row", min_value=1, max_value=10, value=3, step=1)
 
 # Timeframe controls
@@ -74,15 +76,16 @@ interval = st.sidebar.selectbox(
     ["1m", "2m", "5m", "15m", "30m", "60m", "1h", "1d", "5d", "1wk", "1mo", "3mo"],
     index=7   # default "1d"
 )
+
 st.sidebar.write("""
 **Note**: Some period/interval combinations are not supported by Yahoo Finance.
 If a chart is empty, try a shorter period or a longer interval.
 """)
 
-# Checkbox to exclude afterhours data (useful for intraday intervals)
+# Let user exclude after-hours for intraday intervals
 exclude_afterhours = st.sidebar.checkbox("Exclude After‑Hours", value=True)
 
-# Commodity selection (with session state keys)
+# Commodity selection
 selected = st.sidebar.multiselect(
     "Select commodities to display:",
     options=list(commodities.keys()),
@@ -90,63 +93,65 @@ selected = st.sidebar.multiselect(
     key="commodity_select"
 )
 
+# Custom ticker input
 custom_input = st.sidebar.text_input(
     "Enter additional ticker symbols (comma-separated):",
     value="",
     key="custom_input"
 )
 
-# Buttons with callbacks to modify session state
+# Buttons for clearing or inserting commodities
 st.sidebar.button("Clear Dashboard", on_click=clear_dashboard)
 st.sidebar.button("Insert Commodities", on_click=insert_commodities)
 
 # Checkbox: Include Cryptos
 include_crypto = st.sidebar.checkbox("Include Cryptos")
 
-# ---------------------------
-# Build Dashboard Dictionary
-# ---------------------------
+# --------------------------------------------------------------------------------
+# Build the Dashboard Dictionary
+# --------------------------------------------------------------------------------
 dashboard = {}
 
-# Add selected commodities from session state
+# Add selected commodities
 for name in st.session_state.get("commodity_select", selected):
     dashboard[name] = commodities[name]
 
-# Add custom tickers (value is the ticker itself)
+# Add custom tickers
 custom_tickers = [t.strip() for t in st.session_state.get("custom_input", custom_input).split(",") if t.strip()]
 for ticker in custom_tickers:
     dashboard[ticker] = ticker
 
-# Optionally add cryptos if checkbox is selected
+# Optionally add cryptos
 if include_crypto:
     for name, ticker in cryptos.items():
         dashboard[name] = ticker
 
-# ---------------------------
-# Data Fetching and Z‑Score Computation
-# ---------------------------
+# --------------------------------------------------------------------------------
+# Data Fetching (with intraday filtering) and Z‑Score Computation
+# --------------------------------------------------------------------------------
 @st.cache_data
-def get_data(ticker, period, interval):
-    data = yf.download(
-        ticker, 
-        period=period, 
-        interval=interval,
-        prepost=False  # Do not include after-hours
-    )
-    # Flatten MultiIndex columns if needed
+def get_clean_data(ticker: str, period: str, interval: str, exclude_afterhours: bool):
+    """
+    Download data from Yahoo Finance, flatten columns if needed,
+    and (optionally) remove weekends and after-hours for intraday intervals.
+    """
+    # Download data; prepost=False excludes pre/post market
+    data = yf.download(ticker, period=period, interval=interval, prepost=False)
+
+    # Flatten columns if MultiIndex
     if isinstance(data.columns, pd.MultiIndex):
         data.columns = data.columns.get_level_values(0)
-    
-    # If intraday, filter to market hours (optional)
-    if interval.endswith("m") or interval.endswith("h"):
-        # Remove weekends
-        data = data[data.index.dayofweek < 5]
-        # Keep only 9:30–16:00 for US markets
-        data = data.between_time("09:30", "16:00")
-    
+
+    # If this is an intraday interval and the user wants to exclude after-hours
+    # then remove weekends and keep only 9:30–16:00 for US markets.
+    if exclude_afterhours and (interval.endswith("m") or interval.endswith("h")):
+        if not data.empty and isinstance(data.index, pd.DatetimeIndex):
+            # Remove weekends
+            data = data[data.index.dayofweek < 5]
+            # Keep only 9:30–16:00
+            data = data.between_time("09:30", "16:00")
+
     return data
-
-
 
 def compute_zscore(prices: pd.Series) -> float:
     """Compute the z-score of the most recent price relative to the price history."""
@@ -159,18 +164,10 @@ def compute_zscore(prices: pd.Series) -> float:
     last_price = prices.iloc[-1]
     return (last_price - mean_price) / std_price
 
-# Collect data and compute z‑scores for each item.
+# Collect data and compute z‑scores
 items_data = []
 for name, ticker in dashboard.items():
-    data = get_data(ticker, period, interval)
-    
-    # If exclude_afterhours is enabled and the data index has time info, filter to regular hours.
-    if exclude_afterhours and not data.empty and isinstance(data.index, pd.DatetimeIndex):
-        # Check if the index has a time component (not just a date)
-        if data.index[0].strftime("%H:%M:%S") != "00:00:00":
-            # For US equities, filter from 09:30 to 16:00 (adjust if needed for your asset)
-            data = data.between_time("09:30", "16:00")
-    
+    data = get_clean_data(ticker, period, interval, exclude_afterhours)
     if data.empty:
         zscore = np.nan
     else:
@@ -182,12 +179,12 @@ for name, ticker in dashboard.items():
         "zscore": zscore
     })
 
-# Sort items by z‑score ascending (lowest first; NaN treated as high so they appear last)
+# Sort by z‑score ascending (NaN last)
 items_data = sorted(items_data, key=lambda x: (np.isnan(x["zscore"]), x["zscore"]))
 
-# ---------------------------
-# Display Charts in Grid Layout
-# ---------------------------
+# --------------------------------------------------------------------------------
+# Display Charts in a Grid
+# --------------------------------------------------------------------------------
 for i in range(0, len(items_data), cols_per_row):
     cols = st.columns(cols_per_row)
     for j, item in enumerate(items_data[i : i + cols_per_row]):
