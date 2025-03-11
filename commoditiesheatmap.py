@@ -1,9 +1,8 @@
 import yfinance as yf
-import matplotlib.pyplot as plt
-import math
+import plotly.express as px
 import streamlit as st
+import pandas as pd
 
-# Set up the Streamlit app
 st.title("Commodity Price Dashboard")
 st.markdown("This dashboard displays historical closing prices for various commodities.")
 
@@ -31,37 +30,27 @@ commodities = {
     "Orange Juice": "OJ=F"
 }
 
-# Dashboard settings: define the number of columns in the grid
+# Set the number of columns for the dashboard grid
 cols = 3
-num_com = len(commodities)
-rows = math.ceil(num_com / cols)
+commodity_names = list(commodities.keys())
+n = len(commodity_names)
 
-# Create a matplotlib subplots grid
-fig, axes = plt.subplots(rows, cols, figsize=(18, rows * 4), sharex=False, sharey=False)
-axes = axes.flatten()  # Flatten for easier iteration
-
-# Loop through each commodity and plot its data on a separate subplot
-for ax, (name, ticker) in zip(axes, commodities.items()):
-    # Download historical data (max available period with daily interval)
-    data = yf.download(ticker, period="max", interval="1d").reset_index()
-    
-    # Ensure the Date column exists (rename the first column if needed)
-    if "Date" not in data.columns:
-        data = data.rename(columns={data.columns[0]: "Date"})
-    
-    # Plot the closing prices
-    ax.plot(data["Date"], data["Close"], label="Close Price")
-    ax.set_title(name)
-    ax.set_xlabel("Date")
-    ax.set_ylabel("Close Price")
-    ax.tick_params(axis="x", rotation=45)
-    ax.legend()
-
-# Remove any unused subplots (if the grid has extra axes)
-for i in range(len(commodities), len(axes)):
-    fig.delaxes(axes[i])
-
-fig.tight_layout()
-
-# Display the matplotlib figure in the Streamlit app
-st.pyplot(fig)
+# Loop over commodities in groups of 'cols' and display each chart in its own Streamlit column
+for i in range(0, n, cols):
+    columns = st.columns(cols)
+    for col, name in zip(columns, commodity_names[i:i+cols]):
+        ticker = commodities[name]
+        data = yf.download(ticker, period="max", interval="1d").reset_index()
+        
+        # Flatten multi-index columns if present
+        if isinstance(data.columns, pd.MultiIndex):
+            data.columns = [col_item[0] for col_item in data.columns]
+        
+        # Ensure "Date" column exists
+        if "Date" not in data.columns:
+            data = data.rename(columns={data.columns[0]: "Date"})
+        
+        # Create the Plotly Express line chart
+        fig = px.line(data, x="Date", y="Close", title=f"{name} Price History (Close)")
+        
+        col.plotly_chart(fig, use_container_width=True)
