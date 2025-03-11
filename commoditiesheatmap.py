@@ -41,12 +41,15 @@ if selected_commodity:
     data = yf.download(ticker, period="max")
     
     if not data.empty:
+        # Reset the index to convert the Date index into a column
+        data = data.reset_index()
+        
         # Compute the maximum "High" price and its date
         max_price = data["High"].max()
-        max_date = data["High"].idxmax()
+        max_date = data.loc[data["High"].idxmax(), "Date"]
 
         # Create a line chart of the closing prices
-        fig = px.line(data, x=data.index, y="Close", title=f"{selected_commodity} Price History (Close)")
+        fig = px.line(data, x="Date", y="Close", title=f"{selected_commodity} Price History (Close)")
 
         # Add a marker for the maximum high price
         fig.add_scatter(x=[max_date], y=[max_price], mode="markers", 
