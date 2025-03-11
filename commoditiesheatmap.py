@@ -40,31 +40,45 @@ if selected_commodity:
     # Fetch the full historical data using yfinance
     data = yf.download(ticker, period="max")
     
-    if not data.empty:
+    if data.empty:
+        st.error(f"No data available for {selected_commodity}.")
+    else:
         # Reset the index so that the Date becomes a column
         data = data.reset_index()
-        
-        # Determine which column to use for close prices.
-        # Some symbols might not have a "Close" column.
-        if "Close" in data.columns:
+
+        # Convert the Date column to datetime explicitly
+        data["Date"] = pd.to_datetime(data["Date"], errors="coerce")
+        data = data.dropna(subset=["Date"])
+
+        # Determine which column to use for closing prices.
+        if "Close" in data.columns and data["Close"].notna().all():
             close_column = "Close"
         elif "Adj Close" in data.columns:
             close_column = "Adj Close"
         else:
-            st.error("No Close or Adjusted Close data available.")
+            st.error("No valid Close or Adjusted Close data available.")
             st.stop()
         
+        # Convert the close column to numeric (float) if necessary
+        data[close_column] = pd.to_numeric(data[close_column], errors="coerce")
+        data = data.dropna(subset=[close_column])
+        
         # Compute the maximum "High" price and its corresponding date
-        max_price = data["High"].max()
-        max_date = data.loc[data["High"].idxmax(), "Date"]
-
-        # Create a line chart of the closing (or adjusted close) prices
-        fig = px.line(data, x="Date", y=close_column, title=f"{selected_commodity} Price History ({close_column})")
-
+        if "High" in data.columns:
+            max_price = data["High"].max()
+            max_date = data.loc[data["High"].idxmax(), "Date"]
+        else:
+            st.error("No High price data available.")
+            st.stop()
+        
+        # Create a line chart for the closing price (or adjusted close)
+        fig = px.line(data, x="Date", y=close_column, 
+                      title=f"{selected_commodity} Price History ({close_column})")
+        
         # Add a marker for the maximum high price
         fig.add_scatter(x=[max_date], y=[max_price], mode="markers", 
                         marker=dict(color="red", size=10), name="Max High Price")
-
+        
         # Add an annotation for the maximum price
         fig.add_annotation(
             x=max_date,
@@ -75,5 +89,3 @@ if selected_commodity:
         )
         
         st.plotly_chart(fig, use_container_width=True)
-    else:
-        st.error(f"No data available for {selected_commodity}.")
