@@ -1,14 +1,12 @@
 import streamlit as st
 import yfinance as yf
 import matplotlib.pyplot as plt
-import pandas as pd
 
-# Use wide layout so the dashboard spans the entire page
-st.set_page_config(layout="wide")
+st.set_page_config(layout="wide")  # Use the full width of the browser
 
 st.title("Commodities Dashboard")
 
-# Define the default commodities and their ticker symbols.
+# Define default commodities and their ticker symbols
 commodities = {
     "Gold": "GC=F",
     "Silver": "SI=F",
@@ -32,48 +30,66 @@ commodities = {
     "Orange Juice": "OJ=F"
 }
 
-# Let users choose which default commodities to display.
+# Let users pick which default commodities to display
 selected = st.multiselect(
-    "Select commodities to display",
+    "Select commodities to display:",
     options=list(commodities.keys()),
     default=list(commodities.keys())
 )
 
-# Allow users to add additional tickers via comma-separated input.
-custom_input = st.text_input("Enter additional ticker symbols (comma-separated)", value="")
+# Let users add additional tickers (comma-separated)
+custom_input = st.text_input("Enter additional ticker symbols (comma-separated):", "")
 custom_tickers = [t.strip() for t in custom_input.split(",") if t.strip()]
 
-# Build the dashboard dictionary: display name -> ticker symbol.
+# Build the final list of items to display: {display_name: ticker}
 dashboard = {}
 for name in selected:
     dashboard[name] = commodities[name]
 for ticker in custom_tickers:
-    dashboard[ticker] = ticker  # For custom tickers, the name is the same as the ticker.
+    # For custom tickers, use the same string for both name and ticker
+    dashboard[ticker] = ticker
 
-# Removed the line that displayed the keys
-# st.write("Displaying charts for:", list(dashboard.keys()))
+# Timeframe controls
+st.sidebar.header("Select Timeframe")
+period = st.sidebar.selectbox(
+    "Period",
+    ["1d", "5d", "1mo", "3mo", "6mo", "1y", "2y", "5y", "10y", "ytd", "max"],
+    index=10  # default to "max"
+)
+interval = st.sidebar.selectbox(
+    "Interval",
+    ["1m", "2m", "5m", "15m", "30m", "60m", "1h", "1d", "5d", "1wk", "1mo", "3mo"],
+    index=7   # default to "1d"
+)
 
-# Cache the data download to speed up app performance.
+st.sidebar.write("""
+**Note**: Some period/interval combinations are not supported by Yahoo Finance.
+If a chart is empty, try a shorter period or a longer interval.
+""")
+
+# Cache data to speed up repeated downloads
 @st.cache_data
-def get_data(ticker):
-    return yf.download(ticker, period="max", interval="1d")
+def get_data(ticker, period, interval):
+    return yf.download(ticker, period=period, interval=interval)
 
-# Set number of charts per row
+# How many charts per row
 cols_per_row = 3
-dashboard_items = list(dashboard.items())
+items = list(dashboard.items())
 
-# Create a grid of charts.
-for i in range(0, len(dashboard_items), cols_per_row):
+# Display the charts in a grid
+for i in range(0, len(items), cols_per_row):
     cols = st.columns(cols_per_row)
-    for j, (name, ticker) in enumerate(dashboard_items[i : i + cols_per_row]):
+    for j, (name, ticker) in enumerate(items[i : i + cols_per_row]):
         with cols[j]:
-            # Removed subheader so no commodity name appears
-            data = get_data(ticker)
+            # Fetch data
+            data = get_data(ticker, period, interval)
             if data.empty:
-                st.write("No data available for", ticker)
+                st.write(f"No data available for {name} ({ticker})")
             else:
                 fig, ax = plt.subplots(figsize=(4, 3))
-                ax.plot(data.index, data["Close"])
+                ax.plot(data.index, data["Close"], label="Close", linewidth=1)
+                # Add a small title with the commodity name and ticker
+                ax.set_title(f"{name} ({ticker})", fontsize=10)
                 ax.tick_params(axis="x", labelrotation=45, labelsize=6)
                 ax.tick_params(axis="y", labelsize=6)
                 ax.set_xlabel("")
