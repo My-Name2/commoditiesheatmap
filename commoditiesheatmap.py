@@ -1,19 +1,18 @@
 import streamlit as st
 import yfinance as yf
-import matplotlib.pyplot as plt
+import pandas as pd
+import plotly.express as px
 
 st.title("Gold Price History (1 Year)")
 
 # Download one year of daily Gold data
-data = yf.download("GC=F", period="1y", interval="1d").reset_index()
+data = yf.download("GC=F", period="1y", interval="1d")
+data = data.reset_index()
 
-# Create a matplotlib figure and plot the closing price
-fig, ax = plt.subplots(figsize=(10, 5))
-ax.plot(data["Date"], data["Close"], label="Close Price")
-ax.set_title("Gold Price History (1 Year)")
-ax.set_xlabel("Date")
-ax.set_ylabel("Close Price")
-ax.legend()
+# Flatten multi-index columns, if present
+if isinstance(data.columns, pd.MultiIndex):
+    data.columns = data.columns.get_level_values(0)
 
-# Display the plot in the Streamlit app
-st.pyplot(fig)
+# Create a line chart of the closing price
+fig = px.line(data, x="Date", y="Close", title="Gold Price History (1 Year)")
+st.plotly_chart(fig)
