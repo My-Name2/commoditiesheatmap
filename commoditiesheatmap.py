@@ -30,7 +30,7 @@ commodities = {
     "Orange Juice": "OJ=F"
 }
 
-# Set the number of columns in the grid layout
+# Set the number of columns for the grid layout
 cols = 3
 commodity_names = list(commodities.keys())
 n = len(commodity_names)
@@ -42,24 +42,28 @@ for i in range(0, n, cols):
         ticker = commodities[name]
         data = yf.download(ticker, period="max", interval="1d").reset_index()
         
-        # If data is empty, skip this commodity
+        # If data is empty, display a message and skip plotting
         if data.empty:
-            col.write(f"No data available for {name}")
+            col.write(f"No data available for {name}.")
             continue
         
-        # Flatten multi-index columns if present
+        # If the columns are a MultiIndex, flatten them
         if isinstance(data.columns, pd.MultiIndex):
             data.columns = data.columns.get_level_values(0)
+        # Also check if the first column is a tuple (i.e., columns like ("Date", ""))
+        elif isinstance(data.columns[0], tuple):
+            data.columns = [col_item[0] for col_item in data.columns]
         
         # Ensure the "Date" column exists; if not, rename the first column to "Date"
         if "Date" not in data.columns:
             data = data.rename(columns={data.columns[0]: "Date"})
         
-        # Create the Plotly Express line chart using the "Date" and "Close" columns
+        # Create a Plotly Express line chart
         try:
             fig = px.line(data, x="Date", y="Close", title=f"{name} Price History (Close)")
         except Exception as e:
             col.write(f"Error plotting {name}: {e}")
             continue
         
+        # Display the Plotly chart in the corresponding Streamlit column
         col.plotly_chart(fig, use_container_width=True)
